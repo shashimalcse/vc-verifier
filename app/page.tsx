@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from 'react';
 
 type PageState = 'ready' | 'waiting' | 'checking' | 'verified' | 'failed' | 'expired';
-type StatusMode = 'pending' | 'ok' | 'bad';
 
 interface VerificationResult {
   valid: boolean;
@@ -30,11 +29,31 @@ interface SessionResponse {
 const initialDetails = {
   bookingReference: '-',
   passengerName: '-',
-  flightRoute: '-',
+  passengerShortName: '-',
+  flightNumber: '-',
+  destination: 'SIN / Singapore',
   departure: '-',
   originCode: 'CMB',
   destinationCode: 'SIN'
 };
+
+function PhoneIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="7" y="2.8" width="10" height="18.4" rx="2" />
+      <path d="M11.8 18h.4" />
+    </svg>
+  );
+}
+
+function PlaneIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M3.4 12.8 21 4.2l-8.6 17.4-2.2-7.8-6.8-1Z" />
+      <path d="m10.2 13.8 4.4-4.4" />
+    </svg>
+  );
+}
 
 function toUpperTrim(value: string) {
   if (!value) {
@@ -62,19 +81,67 @@ function firstDefined(values: unknown[]) {
   return values.find((value) => value !== undefined && value !== null && value !== '');
 }
 
+function formatClock(date: Date) {
+  const hh = String(date.getHours()).padStart(2, '0');
+  const mm = String(date.getMinutes()).padStart(2, '0');
+  const ss = String(date.getSeconds()).padStart(2, '0');
+  return `${hh}:${mm}:${ss}`;
+}
+
 function formatExpiry(expiresAtMs: number | null) {
   if (!expiresAtMs) {
-    return '-';
+    return '--:--';
   }
 
   const remainingSeconds = Math.max(0, Math.ceil((expiresAtMs - Date.now()) / 1000));
   if (remainingSeconds <= 0) {
-    return 'Expired';
+    return 'expired';
   }
 
-  const minutes = Math.floor(remainingSeconds / 60);
+  const minutes = String(Math.floor(remainingSeconds / 60)).padStart(2, '0');
   const seconds = String(remainingSeconds % 60).padStart(2, '0');
   return `${minutes}:${seconds}`;
+}
+
+function destinationName(code: string) {
+  const normalized = code.toUpperCase();
+  if (normalized === 'SIN') {
+    return 'SIN / Singapore';
+  }
+  if (normalized === 'CMB') {
+    return 'CMB / Colombo';
+  }
+  return normalized;
+}
+
+function cityName(code: string) {
+  const normalized = code.toUpperCase();
+  if (normalized === 'SIN') {
+    return 'Singapore';
+  }
+  if (normalized === 'CMB') {
+    return 'Colombo';
+  }
+  return normalized;
+}
+
+function displayDeparture(value: unknown) {
+  if (!value) {
+    return '-';
+  }
+
+  const text = String(value);
+  const parsed = Date.parse(text);
+  if (!Number.isNaN(parsed)) {
+    return new Intl.DateTimeFormat('en-GB', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    }).format(new Date(parsed));
+  }
+
+  const timeMatch = text.match(/\b([01]?\d|2[0-3]):[0-5]\d\b/);
+  return timeMatch ? timeMatch[0] : text;
 }
 
 function mapClaimsToDetails(claims: Record<string, unknown>) {
@@ -117,50 +184,38 @@ function mapClaimsToDetails(claims: Record<string, unknown>) {
     readPath(claims, ['flight', 'departure_time'])
   ]);
 
-  const passengerName =
-    [toUpperTrim(String(familyName || '')), toUpperTrim(String(givenName || ''))]
-      .filter((part) => part && part !== '-')
-      .join(' / ') || '-';
-
-  const flightDisplayParts = [];
-  if (flightNumber) {
-    flightDisplayParts.push(toUpperTrim(String(flightNumber)));
-  }
-  if (departureAirport || arrivalAirport) {
-    flightDisplayParts.push(
-      `${toUpperTrim(String(departureAirport || '?'))} -> ${toUpperTrim(String(arrivalAirport || '?'))}`
-    );
-  }
+  const family = toUpperTrim(String(familyName || ''));
+  const given = toUpperTrim(String(givenName || ''));
+  const passengerName = [family, given].filter((part) => part && part !== '-').join(' / ') || '-';
+  const passengerShortName =
+    family && family !== '-'
+      ? `${given && given !== '-' ? `${given[0]}. ` : ''}${family}`
+      : passengerName;
+  const destinationCode = toUpperTrim(String(arrivalAirport || 'SIN'));
 
   return {
     bookingReference: toUpperTrim(String(bookingReference || '-')),
     passengerName,
-    flightRoute: flightDisplayParts.join(' | ') || '-',
-    departure: departureTime ? String(departureTime) : '-',
+    passengerShortName,
+    flightNumber: toUpperTrim(String(flightNumber || '-')),
+    destination: destinationName(destinationCode),
+    departure: displayDeparture(departureTime),
     originCode: toUpperTrim(String(departureAirport || 'CMB')),
-    destinationCode: toUpperTrim(String(arrivalAirport || 'SIN'))
+    destinationCode
   };
 }
 
 export default function Home() {
   const [pageState, setPageState] = useState<PageState>('ready');
-  const [clock, setClock] = useState('--:--');
+  const [clock, setClock] = useState('--:--:--');
   const [activeRequestId, setActiveRequestId] = useState<string | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState('');
   const [expiresAtMs, setExpiresAtMs] = useState<number | null>(null);
-  const [expiryText, setExpiryText] = useState('-');
-  const [statusText, setStatusText] = useState('Ready when you are.');
-  const [statusMode, setStatusMode] = useState<StatusMode>('pending');
-  const [helpText, setHelpText] = useState('-');
-  const [scanTitle, setScanTitle] = useState('Scan to find your booking');
-  const [scanCopy, setScanCopy] = useState(
-    'Open your travel wallet and scan to check in without typing your booking reference.'
-  );
-  const [verifyTitle, setVerifyTitle] = useState('Ready for check-in');
-  const [verifySubtitle, setVerifySubtitle] = useState('Scan to find your booking.');
+  const [expiryText, setExpiryText] = useState('--:--');
   const [details, setDetails] = useState(initialDetails);
   const [isCreating, setIsCreating] = useState(false);
   const pollHandle = useRef<ReturnType<typeof setInterval> | null>(null);
+  const finalTransitionHandle = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const stopPolling = () => {
     if (pollHandle.current) {
@@ -169,17 +224,24 @@ export default function Home() {
     }
   };
 
+  const clearFinalTransition = () => {
+    if (finalTransitionHandle.current) {
+      clearTimeout(finalTransitionHandle.current);
+      finalTransitionHandle.current = null;
+    }
+  };
+
   const setExpiry = (value?: string) => {
     if (!value) {
       setExpiresAtMs(null);
-      setExpiryText('-');
+      setExpiryText('--:--');
       return;
     }
 
     const parsed = Date.parse(value);
     if (Number.isNaN(parsed)) {
       setExpiresAtMs(null);
-      setExpiryText('-');
+      setExpiryText('--:--');
       return;
     }
 
@@ -187,90 +249,56 @@ export default function Home() {
     setExpiryText(formatExpiry(parsed));
   };
 
-  const setStatus = (text: string, mode: StatusMode = 'pending') => {
-    setStatusText(text);
-    setStatusMode(mode);
-  };
-
-  const resetBookingView = () => {
+  const resetSession = () => {
+    stopPolling();
+    clearFinalTransition();
     setPageState('ready');
+    setActiveRequestId(null);
     setQrDataUrl('');
-    setScanTitle('Scan to find your booking');
-    setScanCopy('Open your travel wallet and scan to check in without typing your booking reference.');
-    setVerifyTitle('Ready for check-in');
-    setVerifySubtitle('Scan to find your booking.');
     setDetails(initialDetails);
     setExpiry();
-    setHelpText('-');
+    setIsCreating(false);
+  };
+
+  const showVerifiedAfterValidation = (claims: Record<string, unknown>) => {
+    clearFinalTransition();
+    setPageState('checking');
+    finalTransitionHandle.current = setTimeout(() => {
+      setDetails(mapClaimsToDetails(claims));
+      setPageState('verified');
+      finalTransitionHandle.current = null;
+    }, 1500);
   };
 
   const renderLifecycle = (statusPayload: StatusPayload) => {
     setExpiry(statusPayload.expiresAt);
-    setHelpText('-');
 
     if (statusPayload.status === 'ACTIVE') {
       setPageState('waiting');
-      setScanTitle('Scan to find your booking');
-      setScanCopy('Hold your phone camera over this code. We will find your trip automatically.');
-      setVerifyTitle('Waiting for passenger');
-      setVerifySubtitle('Scan to find your booking.');
-      setStatus('Waiting for scan...', 'pending');
       return false;
     }
 
     if (statusPayload.status === 'VP_SUBMITTED') {
       setPageState('checking');
-      setScanTitle('Booking received');
-      setScanCopy('Keep this screen open while we check your flight details.');
-      setVerifyTitle('Booking found');
-      setVerifySubtitle('Checking flight details...');
-      setStatus('Booking found. Checking flight details...', 'pending');
       return false;
     }
 
     if (statusPayload.status === 'VERIFIED') {
-      setPageState('verified');
-      setScanTitle('Ready to continue');
-      setScanCopy('Your booking is matched. Continue to seat selection when ready.');
-      setStatus('Booking matched.', 'ok');
-      setVerifyTitle('Booking verified');
-      const claims = statusPayload.verificationResult?.claims || {};
-      const displayName = firstDefined([
-        readPath(claims, ['family_name']),
-        readPath(claims, ['last_name']),
-        readPath(claims, ['given_name'])
-      ]);
-      setVerifySubtitle(displayName ? `Welcome aboard, ${displayName}.` : 'Welcome aboard.');
-      setDetails(mapClaimsToDetails(claims));
-      setHelpText('-');
+      showVerifiedAfterValidation(statusPayload.verificationResult?.claims || {});
       return true;
     }
 
     if (statusPayload.status === 'FAILED') {
       setPageState('failed');
-      setScanTitle('Try another scan');
-      setScanCopy('Use the latest check-in code, or ask an agent if your booking still cannot be found.');
-      setStatus('We could not match this booking.', 'bad');
-      setVerifyTitle('We could not match this booking');
-      setVerifySubtitle('Please try again or ask an agent for help.');
-      setHelpText('Try again or ask an agent for help.');
       return true;
     }
 
     if (statusPayload.status === 'EXPIRED') {
       setPageState('expired');
-      setScanTitle('Code expired');
-      setScanCopy('Start again to get a fresh check-in code.');
-      setStatus('This check-in session expired.', 'bad');
-      setVerifyTitle('Session expired');
-      setVerifySubtitle('Start again to get a fresh code.');
-      setHelpText('Start again to get a fresh code.');
       return true;
     }
 
     setPageState('failed');
-    setStatus('Something went wrong. Please start again.', 'bad');
-    setHelpText('Start again or ask an agent for help.');
     return true;
   };
 
@@ -278,7 +306,6 @@ export default function Home() {
     const response = await fetch(`/openid4vp/authorization-request/${encodeURIComponent(requestId)}/status`);
     if (!response.ok) {
       setPageState('failed');
-      setStatus('Status lookup failed.', 'bad');
       stopPolling();
       return;
     }
@@ -293,12 +320,12 @@ export default function Home() {
   const createRequest = async () => {
     setIsCreating(true);
     stopPolling();
+    clearFinalTransition();
     setActiveRequestId(null);
-    resetBookingView();
+    setQrDataUrl('');
+    setDetails(initialDetails);
+    setExpiry();
     setPageState('waiting');
-    setScanTitle('Preparing your code');
-    setScanCopy('A fresh check-in code will appear here in a moment.');
-    setStatus('Preparing your check-in code...', 'pending');
 
     try {
       const response = await fetch('/api/sessions', {
@@ -309,8 +336,6 @@ export default function Home() {
 
       if (!response.ok) {
         setPageState('failed');
-        setStatus('Could not start check-in.', 'bad');
-        setHelpText('Please try again or ask an agent for help.');
         return;
       }
 
@@ -318,17 +343,13 @@ export default function Home() {
       setActiveRequestId(payload.session.id);
       setQrDataUrl(payload.qrDataUrl);
       setExpiry(payload.session.expiresAt);
-      setScanTitle('Scan to find your booking');
-      setScanCopy('Hold your phone camera over this code. We will find your trip automatically.');
-      setStatus('Waiting for scan...', 'pending');
+      setPageState('waiting');
 
       pollHandle.current = setInterval(() => {
         void pollStatus(payload.session.id);
       }, 2500);
     } catch {
       setPageState('failed');
-      setStatus('Could not start check-in.', 'bad');
-      setHelpText('Please try again or ask an agent for help.');
     } finally {
       setIsCreating(false);
     }
@@ -336,10 +357,7 @@ export default function Home() {
 
   useEffect(() => {
     const tick = () => {
-      const now = new Date();
-      const hh = String(now.getHours()).padStart(2, '0');
-      const mm = String(now.getMinutes()).padStart(2, '0');
-      setClock(`${hh}:${mm}`);
+      setClock(formatClock(new Date()));
       setExpiryText(formatExpiry(expiresAtMs));
     };
 
@@ -348,95 +366,158 @@ export default function Home() {
     return () => clearInterval(handle);
   }, [expiresAtMs]);
 
-  useEffect(() => () => stopPolling(), []);
+  useEffect(() => () => {
+    stopPolling();
+    clearFinalTransition();
+  }, []);
 
-  const actionsEnabled = pageState === 'verified';
+  const isScanPhase = pageState === 'waiting';
+  const isValidating = pageState === 'checking';
+  const isComplete = pageState === 'verified';
+  const isRecoverableError = pageState === 'failed' || pageState === 'expired';
+  const destinationText = `${cityName(details.originCode)} (${details.originCode}) to ${cityName(details.destinationCode)} (${details.destinationCode})`;
 
   return (
-    <main className="shell">
-      <div className="app" data-state={pageState} data-has-qr={qrDataUrl ? 'true' : 'false'}>
-        <div className="topbar">
-          <div className="brand">
-            <div className="logo"><span /></div>
-            <div>
-              <h1>SkyLink Self Check-in</h1>
-              <p>Fast passenger check-in</p>
-            </div>
+    <main className="kiosk-shell">
+      <section className="kiosk" data-state={pageState}>
+        <header className="kiosk-header">
+          <div className="kiosk-route">
+            <span>Terminal 2 / Check-in</span>
+            <span className="divider" />
+            <span>{destinationText}</span>
           </div>
-          <div className="top-meta">
-            <div className="terminal-pill">Terminal 2</div>
-            <div className="clock">{clock}</div>
-          </div>
-        </div>
+          <time className="kiosk-clock">{clock}</time>
+        </header>
 
-        <div className="main">
-          <div className="layout">
-            <section className="panel scan">
-              <p className="eyebrow">Step 1</p>
-              <h2>{scanTitle}</h2>
-              <p>{scanCopy}</p>
-
-              <div className="scanner-stage">
-                <div className="scanner-frame">
-                  <div className="scanner-placeholder">
-                    <div className="scan-glyph"><span /></div>
-                    <div>Tap start to show your check-in code.</div>
-                  </div>
-                  {qrDataUrl ? <img id="wallet-qr" src={qrDataUrl} alt="Check-in scan code" /> : null}
-                </div>
-              </div>
-
-              <div className="actions">
-                <button className="primary-btn" onClick={createRequest} disabled={isCreating}>
-                  {activeRequestId ? 'Start over' : 'Start check-in'}
+        <div className="kiosk-main">
+          <aside className="scanner-rail">
+            {pageState === 'ready' ? (
+              <div className="rail-panel enter-panel">
+                <div className="microcopy green">Welcome to SkyLink</div>
+                <h1>Fast Track<br />Check-in</h1>
+                <button className="start-btn" onClick={createRequest} disabled={isCreating}>
+                  {isCreating ? 'Preparing...' : 'Start Check-in'}
                 </button>
-                <div className={`status ${statusMode}`}>{statusText}</div>
-                <div className="meta-grid">
-                  <div className="meta-line"><strong>Code expires</strong><span>{expiryText}</span></div>
-                  <div className="meta-line"><strong>Help</strong><span>{helpText}</span></div>
-                </div>
               </div>
-            </section>
+            ) : null}
 
-            <section className="panel result">
-              <div className="journey-strip">
-                <div className="airport-code">{details.originCode}</div>
-                <div className="route-line" aria-hidden="true" />
-                <div className="airport-code">{details.destinationCode}</div>
-              </div>
-              <div className="verified-icon"><span /></div>
-              <div className="headline">
-                <h2>{verifyTitle}</h2>
-                <p>{verifySubtitle}</p>
-              </div>
+            {isScanPhase || isValidating ? (
+              <div className="rail-panel scan-panel">
+                <div className={`qr-card ${isValidating ? 'qr-card-muted' : ''}`}>
+                  {qrDataUrl ? (
+                    <img id="wallet-qr" src={qrDataUrl} alt="Check-in scan code" />
+                  ) : (
+                    <div className="qr-placeholder">Preparing</div>
+                  )}
+                  {isValidating ? <div className="qr-overlay"><span /></div> : null}
+                </div>
 
-              <div className="details">
-                <div className="row">
-                  <div className="label">Booking reference</div>
-                  <div className="value">{details.bookingReference}</div>
-                </div>
-                <div className="row">
-                  <div className="label">Passenger</div>
-                  <div className="value">{details.passengerName}</div>
-                </div>
-                <div className="row">
-                  <div className="label">Flight</div>
-                  <div className="value">{details.flightRoute}</div>
-                </div>
-                <div className="row">
-                  <div className="label">Departure</div>
-                  <div className="value">{details.departure}</div>
+                <div className="rail-separator" />
+                <div className="rail-status">
+                  <div className={isValidating ? 'microcopy amber pulse-text' : 'microcopy green'}>
+                    {isValidating ? 'Verifying Booking...' : 'Scan Code'}
+                  </div>
+                  <p>{isValidating ? 'Processing securely' : `Session expires in ${expiryText}`}</p>
                 </div>
               </div>
+            ) : null}
 
-              <div className="footer-actions">
-                <button className="outline-btn" disabled={!actionsEnabled}>Choose seat</button>
-                <button className="outline-btn" disabled={!actionsEnabled}>-&gt;</button>
+            {isComplete ? (
+              <div className="rail-panel complete-panel">
+                <div className="round-icon"><PlaneIcon /></div>
+                <div className="microcopy green">Verification Complete</div>
+                <p>Your booking has been securely matched against the passenger manifest.</p>
+                <button className="ghost-btn" onClick={resetSession}>Start Over</button>
               </div>
-            </section>
-          </div>
+            ) : null}
+
+            {isRecoverableError ? (
+              <div className="rail-panel complete-panel">
+                <div className="round-icon warning-mark">!</div>
+                <div className="microcopy amber">{pageState === 'expired' ? 'Session Expired' : 'Booking Not Found'}</div>
+                <p>{pageState === 'expired' ? 'Start again to get a fresh code.' : 'Please try again or ask an agent for help.'}</p>
+                <button className="ghost-btn" onClick={resetSession}>Start Over</button>
+              </div>
+            ) : null}
+          </aside>
+
+          <section className="story-stage">
+            {pageState === 'ready' ? (
+              <div className="stage-panel idle-stage">
+                <PlaneIcon />
+                <h2>SkyLink<br />Secure</h2>
+              </div>
+            ) : null}
+
+            {isScanPhase ? (
+              <div className="stage-panel instruction-stage">
+                <h2>Submit your Digital Pass</h2>
+                <p>Open your digital wallet and scan the generated code to verify your booking.</p>
+              </div>
+            ) : null}
+
+            {isValidating ? (
+              <div className="stage-panel validating-stage">
+                <div className="validation-spinner" />
+                <h2>Validating...</h2>
+                <p>Checking passenger and flight details</p>
+              </div>
+            ) : null}
+
+            {isComplete ? (
+              <div className="stage-panel verified-stage">
+                <div>
+                  <div className="field-label">Passenger Name</div>
+                  <h2>{details.passengerShortName}</h2>
+
+                  <div className="manifest-grid">
+                    <div>
+                      <div className="field-label">Flight</div>
+                      <div className="field-value mono">{details.flightNumber}</div>
+                    </div>
+                    <div>
+                      <div className="field-label">Destination</div>
+                      <div className="field-value">{details.destination}</div>
+                    </div>
+                    <div>
+                      <div className="field-label">Departure</div>
+                      <div className="departure-time mono">{details.departure}</div>
+                    </div>
+                    <div>
+                      <div className="field-label">Booking Ref</div>
+                      <div className="field-value mono green-text">{details.bookingReference}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="terminal-status">
+                  <div>
+                    <div className="status-kicker">Terminal Status</div>
+                    <div className="status-title">Boarding Verified</div>
+                  </div>
+                  <div className="status-diamond"><span /></div>
+                </div>
+              </div>
+            ) : null}
+
+            {isRecoverableError ? (
+              <div className="stage-panel validating-stage">
+                <div className="validation-spinner danger-spinner" />
+                <h2>{pageState === 'expired' ? 'Session Expired' : 'Try Again'}</h2>
+                <p>{pageState === 'expired' ? 'Start again to get a fresh check-in code.' : 'We could not match this booking.'}</p>
+              </div>
+            ) : null}
+          </section>
         </div>
-      </div>
+
+        <footer className="kiosk-footer">
+          <div className="footer-actions">
+            <button onClick={resetSession}>F1: Reset Session</button>
+            {isComplete ? <button className="seat-action">F2: Choose Seat <span>-&gt;</span></button> : null}
+          </div>
+          <div>System Secure • v4.8.2</div>
+        </footer>
+      </section>
     </main>
   );
 }

@@ -26,16 +26,18 @@ interface SessionResponse {
   qrDataUrl: string;
 }
 
-const initialDetails = {
-  bookingReference: '-',
-  passengerName: '-',
-  passengerShortName: '-',
-  flightNumber: '-',
+const demoBookingDetails = {
+  bookingReference: 'QW89YX',
+  passengerName: 'PERERA / KAVINDU',
+  passengerShortName: 'K. PERERA',
+  flightNumber: 'UL 308',
   destination: 'SIN / Singapore',
-  departure: '-',
+  departure: '13:45',
   originCode: 'CMB',
   destinationCode: 'SIN'
 };
+
+const initialDetails = demoBookingDetails;
 
 function PhoneIcon() {
   return (
@@ -186,21 +188,21 @@ function mapClaimsToDetails(claims: Record<string, unknown>) {
 
   const family = toUpperTrim(String(familyName || ''));
   const given = toUpperTrim(String(givenName || ''));
-  const passengerName = [family, given].filter((part) => part && part !== '-').join(' / ') || '-';
+  const passengerName = [family, given].filter((part) => part && part !== '-').join(' / ') || demoBookingDetails.passengerName;
   const passengerShortName =
     family && family !== '-'
       ? `${given && given !== '-' ? `${given[0]}. ` : ''}${family}`
       : passengerName;
-  const destinationCode = toUpperTrim(String(arrivalAirport || 'SIN'));
+  const destinationCode = toUpperTrim(String(arrivalAirport || demoBookingDetails.destinationCode));
 
   return {
-    bookingReference: toUpperTrim(String(bookingReference || '-')),
+    bookingReference: toUpperTrim(String(bookingReference || demoBookingDetails.bookingReference)),
     passengerName,
     passengerShortName,
-    flightNumber: toUpperTrim(String(flightNumber || '-')),
+    flightNumber: toUpperTrim(String(flightNumber || demoBookingDetails.flightNumber)),
     destination: destinationName(destinationCode),
-    departure: displayDeparture(departureTime),
-    originCode: toUpperTrim(String(departureAirport || 'CMB')),
+    departure: departureTime ? displayDeparture(departureTime) : demoBookingDetails.departure,
+    originCode: toUpperTrim(String(departureAirport || demoBookingDetails.originCode)),
     destinationCode
   };
 }
@@ -466,24 +468,24 @@ export default function Home() {
 
             {isComplete ? (
               <div className="stage-panel verified-stage">
-                <div>
+                <div className="manifest-card">
                   <div className="field-label">Passenger Name</div>
                   <h2>{details.passengerShortName}</h2>
 
                   <div className="manifest-grid">
-                    <div>
+                    <div className="manifest-cell">
                       <div className="field-label">Flight</div>
                       <div className="field-value mono">{details.flightNumber}</div>
                     </div>
-                    <div>
+                    <div className="manifest-cell">
                       <div className="field-label">Destination</div>
                       <div className="field-value">{details.destination}</div>
                     </div>
-                    <div>
+                    <div className="manifest-cell">
                       <div className="field-label">Departure</div>
                       <div className="departure-time mono">{details.departure}</div>
                     </div>
-                    <div>
+                    <div className="manifest-cell">
                       <div className="field-label">Booking Ref</div>
                       <div className="field-value mono green-text">{details.bookingReference}</div>
                     </div>

@@ -188,11 +188,12 @@ function mapClaimsToDetails(claims: Record<string, unknown>) {
 
   const family = toUpperTrim(String(familyName || ''));
   const given = toUpperTrim(String(givenName || ''));
+  const hasPassengerName = Boolean((family && family !== '-') || (given && given !== '-'));
   const passengerName = [family, given].filter((part) => part && part !== '-').join(' / ') || demoBookingDetails.passengerName;
   const passengerShortName =
-    family && family !== '-'
+    hasPassengerName && family && family !== '-'
       ? `${given && given !== '-' ? `${given[0]}. ` : ''}${family}`
-      : passengerName;
+      : demoBookingDetails.passengerShortName;
   const destinationCode = toUpperTrim(String(arrivalAirport || demoBookingDetails.destinationCode));
 
   return {

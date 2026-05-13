@@ -436,32 +436,33 @@ button {
   display: flex;
   flex-direction: column;
   justify-content: stretch;
-  gap: 18px;
-  padding: 42px 56px 32px;
+  gap: 22px;
+  padding: 38px 56px 34px;
   min-height: 0;
 }
 
 .field-label {
-  margin-bottom: 12px;
+  margin-bottom: 8px;
   color: rgba(255, 255, 255, 0.35);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.28em;
   text-transform: uppercase;
 }
 
 .verified-stage h2 {
-  margin: 0 0 30px;
+  margin: 0 0 24px;
   color: var(--green);
-  font-size: clamp(3.35rem, 5.8vw, 4.65rem);
-  line-height: 0.92;
+  font-size: clamp(2.75rem, 4.6vw, 3.8rem);
+  line-height: 0.98;
   letter-spacing: -0.085em;
   text-transform: uppercase;
+  overflow-wrap: anywhere;
 }
 
 .manifest-card {
   min-height: 0;
-  padding: 28px 32px 30px;
+  padding: 26px 32px 28px;
   border: 1px solid var(--line);
   border-radius: 18px;
   background:
@@ -473,7 +474,8 @@ button {
 .manifest-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 28px 52px;
+  gap: 24px 48px;
+  align-items: start;
 }
 
 .manifest-cell {
@@ -482,8 +484,8 @@ button {
 
 .field-value {
   color: rgba(255, 255, 255, 0.92);
-  font-size: clamp(1.8rem, 3vw, 2.35rem);
-  line-height: 1.16;
+  font-size: clamp(1.45rem, 2.35vw, 1.95rem);
+  line-height: 1.18;
   font-weight: 500;
   overflow-wrap: anywhere;
 }
@@ -494,10 +496,10 @@ button {
 
 .departure-time {
   color: var(--white);
-  font-size: clamp(3.5rem, 6vw, 4.8rem);
-  line-height: 0.9;
-  font-weight: 950;
-  letter-spacing: -0.12em;
+  font-size: clamp(1.8rem, 3.15vw, 2.6rem);
+  line-height: 1.05;
+  font-weight: 800;
+  letter-spacing: -0.08em;
 }
 
 .terminal-status {
@@ -506,7 +508,7 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 28px;
-  padding: 24px 30px;
+  padding: 22px 30px;
   border-radius: 12px;
   background: linear-gradient(135deg, var(--green), #48bf86);
   color: #040404;
@@ -522,7 +524,7 @@ button {
 }
 
 .status-title {
-  font-size: clamp(1.85rem, 3vw, 2.45rem);
+  font-size: clamp(1.65rem, 2.65vw, 2.15rem);
   font-weight: 950;
   line-height: 1;
   letter-spacing: -0.05em;

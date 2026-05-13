@@ -26,19 +26,6 @@ interface SessionResponse {
   qrDataUrl: string;
 }
 
-const demoBookingDetails = {
-  bookingReference: 'QW89YX',
-  passengerName: 'PERERA / KAVINDU',
-  passengerShortName: 'K. PERERA',
-  flightNumber: 'UL 308',
-  destination: 'SIN / Singapore',
-  departure: '13:45',
-  originCode: 'CMB',
-  destinationCode: 'SIN'
-};
-
-const initialDetails = demoBookingDetails;
-
 function PhoneIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -55,32 +42,6 @@ function PlaneIcon() {
       <path d="m10.2 13.8 4.4-4.4" />
     </svg>
   );
-}
-
-function toUpperTrim(value: string) {
-  if (!value) {
-    return '-';
-  }
-  return value.trim().toUpperCase();
-}
-
-function readPath(source: unknown, path: string[]) {
-  if (!source || typeof source !== 'object') {
-    return undefined;
-  }
-
-  let current = source as Record<string, unknown>;
-  for (const key of path) {
-    if (!current || typeof current !== 'object' || !(key in current)) {
-      return undefined;
-    }
-    current = current[key] as Record<string, unknown>;
-  }
-  return current;
-}
-
-function firstDefined(values: unknown[]) {
-  return values.find((value) => value !== undefined && value !== null && value !== '');
 }
 
 function formatClock(date: Date) {
@@ -105,109 +66,6 @@ function formatExpiry(expiresAtMs: number | null) {
   return `${minutes}:${seconds}`;
 }
 
-function destinationName(code: string) {
-  const normalized = code.toUpperCase();
-  if (normalized === 'SIN') {
-    return 'SIN / Singapore';
-  }
-  if (normalized === 'CMB') {
-    return 'CMB / Colombo';
-  }
-  return normalized;
-}
-
-function cityName(code: string) {
-  const normalized = code.toUpperCase();
-  if (normalized === 'SIN') {
-    return 'Singapore';
-  }
-  if (normalized === 'CMB') {
-    return 'Colombo';
-  }
-  return normalized;
-}
-
-function displayDeparture(value: unknown) {
-  if (!value) {
-    return '-';
-  }
-
-  const text = String(value);
-  const parsed = Date.parse(text);
-  if (!Number.isNaN(parsed)) {
-    return new Intl.DateTimeFormat('en-GB', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false
-    }).format(new Date(parsed));
-  }
-
-  const timeMatch = text.match(/\b([01]?\d|2[0-3]):[0-5]\d\b/);
-  return timeMatch ? timeMatch[0] : text;
-}
-
-function mapClaimsToDetails(claims: Record<string, unknown>) {
-  const bookingReference = firstDefined([
-    readPath(claims, ['booking_reference']),
-    readPath(claims, ['pnr']),
-    readPath(claims, ['reservation_code']),
-    readPath(claims, ['work_id'])
-  ]);
-
-  const givenName = firstDefined([
-    readPath(claims, ['given_name']),
-    readPath(claims, ['first_name']),
-    readPath(claims, ['passenger', 'given_name'])
-  ]);
-
-  const familyName = firstDefined([
-    readPath(claims, ['family_name']),
-    readPath(claims, ['last_name']),
-    readPath(claims, ['passenger', 'family_name'])
-  ]);
-
-  const flightNumber = firstDefined([
-    readPath(claims, ['flight_number']),
-    readPath(claims, ['flight', 'number'])
-  ]);
-
-  const departureAirport = firstDefined([
-    readPath(claims, ['departure_airport']),
-    readPath(claims, ['flight', 'from'])
-  ]);
-
-  const arrivalAirport = firstDefined([
-    readPath(claims, ['arrival_airport']),
-    readPath(claims, ['flight', 'to'])
-  ]);
-
-  const departureTime = firstDefined([
-    readPath(claims, ['departure_time']),
-    readPath(claims, ['flight', 'departure_time'])
-  ]);
-
-  const family = toUpperTrim(String(familyName || ''));
-  const given = toUpperTrim(String(givenName || ''));
-  const hasPassengerName = Boolean((family && family !== '-') || (given && given !== '-'));
-  const passengerName = [family, given].filter((part) => part && part !== '-').join(' / ') || demoBookingDetails.passengerName;
-  const passengerShortName =
-    hasPassengerName && family && family !== '-'
-      ? `${given && given !== '-' ? `${given[0]}. ` : ''}${family}`
-      : demoBookingDetails.passengerShortName;
-  const destinationCode = toUpperTrim(String(arrivalAirport || demoBookingDetails.destinationCode));
-
-  return {
-    bookingReference: toUpperTrim(String(bookingReference || demoBookingDetails.bookingReference)),
-    passengerName,
-    passengerShortName,
-    flightNumber: toUpperTrim(String(flightNumber || demoBookingDetails.flightNumber)),
-    destination: destinationName(destinationCode),
-    departure: departureTime ? displayDeparture(departureTime) : demoBookingDetails.departure,
-    originCode: toUpperTrim(String(departureAirport || demoBookingDetails.originCode)),
-    destinationCode
-  };
-}
-
 export default function Home() {
   const [pageState, setPageState] = useState<PageState>('ready');
   const [clock, setClock] = useState('--:--:--');
@@ -215,7 +73,6 @@ export default function Home() {
   const [qrDataUrl, setQrDataUrl] = useState('');
   const [expiresAtMs, setExpiresAtMs] = useState<number | null>(null);
   const [expiryText, setExpiryText] = useState('--:--');
-  const [details, setDetails] = useState(initialDetails);
   const [isCreating, setIsCreating] = useState(false);
   const pollHandle = useRef<ReturnType<typeof setInterval> | null>(null);
   const finalTransitionHandle = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -258,16 +115,14 @@ export default function Home() {
     setPageState('ready');
     setActiveRequestId(null);
     setQrDataUrl('');
-    setDetails(initialDetails);
     setExpiry();
     setIsCreating(false);
   };
 
-  const showVerifiedAfterValidation = (claims: Record<string, unknown>) => {
+  const showVerifiedAfterValidation = () => {
     clearFinalTransition();
     setPageState('checking');
     finalTransitionHandle.current = setTimeout(() => {
-      setDetails(mapClaimsToDetails(claims));
       setPageState('verified');
       finalTransitionHandle.current = null;
     }, 1500);
@@ -287,7 +142,7 @@ export default function Home() {
     }
 
     if (statusPayload.status === 'VERIFIED') {
-      showVerifiedAfterValidation(statusPayload.verificationResult?.claims || {});
+      showVerifiedAfterValidation();
       return true;
     }
 
@@ -326,7 +181,6 @@ export default function Home() {
     clearFinalTransition();
     setActiveRequestId(null);
     setQrDataUrl('');
-    setDetails(initialDetails);
     setExpiry();
     setPageState('waiting');
 
@@ -378,16 +232,15 @@ export default function Home() {
   const isValidating = pageState === 'checking';
   const isComplete = pageState === 'verified';
   const isRecoverableError = pageState === 'failed' || pageState === 'expired';
-  const destinationText = `${cityName(details.originCode)} (${details.originCode}) to ${cityName(details.destinationCode)} (${details.destinationCode})`;
 
   return (
     <main className="kiosk-shell">
       <section className="kiosk" data-state={pageState}>
         <header className="kiosk-header">
           <div className="kiosk-route">
-            <span>Terminal 2 / Check-in</span>
+            <span>Terminal 2 / Lounge Access</span>
             <span className="divider" />
-            <span>{destinationText}</span>
+            <span>Passenger Eligibility Check</span>
           </div>
           <time className="kiosk-clock">{clock}</time>
         </header>
@@ -397,9 +250,9 @@ export default function Home() {
             {pageState === 'ready' ? (
               <div className="rail-panel enter-panel">
                 <div className="microcopy green">Welcome to SkyLink</div>
-                <h1>Fast Track<br />Check-in</h1>
+                <h1>Lounge<br />Access</h1>
                 <button className="start-btn" onClick={createRequest} disabled={isCreating}>
-                  {isCreating ? 'Preparing...' : 'Start Check-in'}
+                  {isCreating ? 'Preparing...' : 'Start Access Check'}
                 </button>
               </div>
             ) : null}
@@ -408,7 +261,7 @@ export default function Home() {
               <div className="rail-panel scan-panel">
                 <div className={`qr-card ${isValidating ? 'qr-card-muted' : ''}`}>
                   {qrDataUrl ? (
-                    <img id="wallet-qr" src={qrDataUrl} alt="Check-in scan code" />
+                    <img id="wallet-qr" src={qrDataUrl} alt="Lounge access scan code" />
                   ) : (
                     <div className="qr-placeholder">Preparing</div>
                   )}
@@ -418,7 +271,7 @@ export default function Home() {
                 <div className="rail-separator" />
                 <div className="rail-status">
                   <div className={isValidating ? 'microcopy amber pulse-text' : 'microcopy green'}>
-                    {isValidating ? 'Verifying Booking...' : 'Scan Code'}
+                    {isValidating ? 'Checking Access...' : 'Scan Code'}
                   </div>
                   <p>{isValidating ? 'Processing securely' : `Session expires in ${expiryText}`}</p>
                 </div>
@@ -428,8 +281,8 @@ export default function Home() {
             {isComplete ? (
               <div className="rail-panel complete-panel">
                 <div className="round-icon"><PlaneIcon /></div>
-                <div className="microcopy green">Verification Complete</div>
-                <p>Your booking has been securely matched against the passenger manifest.</p>
+                <div className="microcopy green">Access Verified</div>
+                <p>Your lounge access has been approved.</p>
                 <button className="ghost-btn" onClick={resetSession}>Start Over</button>
               </div>
             ) : null}
@@ -437,8 +290,8 @@ export default function Home() {
             {isRecoverableError ? (
               <div className="rail-panel complete-panel">
                 <div className="round-icon warning-mark">!</div>
-                <div className="microcopy amber">{pageState === 'expired' ? 'Session Expired' : 'Booking Not Found'}</div>
-                <p>{pageState === 'expired' ? 'Start again to get a fresh code.' : 'Please try again or ask an agent for help.'}</p>
+                <div className="microcopy amber">{pageState === 'expired' ? 'Session Expired' : 'Access Not Verified'}</div>
+                <p>{pageState === 'expired' ? 'Start again to get a fresh code.' : 'Please try again or ask a lounge agent for help.'}</p>
                 <button className="ghost-btn" onClick={resetSession}>Start Over</button>
               </div>
             ) : null}
@@ -454,8 +307,8 @@ export default function Home() {
 
             {isScanPhase ? (
               <div className="stage-panel instruction-stage">
-                <h2>Submit your Digital Pass</h2>
-                <p>Open your digital wallet and scan the generated code to verify your booking.</p>
+                <h2>Scan for Lounge Access</h2>
+                <p>Open your wallet, review the requested details, and share them to continue.</p>
               </div>
             ) : null}
 
@@ -463,40 +316,23 @@ export default function Home() {
               <div className="stage-panel validating-stage">
                 <div className="validation-spinner" />
                 <h2>Validating...</h2>
-                <p>Checking passenger and flight details</p>
+                <p>Checking disclosed access details</p>
               </div>
             ) : null}
 
             {isComplete ? (
               <div className="stage-panel verified-stage">
-                <div className="manifest-card">
-                  <div className="field-label">Passenger Name</div>
-                  <h2>{details.passengerShortName}</h2>
-
-                  <div className="manifest-grid">
-                    <div className="manifest-cell">
-                      <div className="field-label">Flight</div>
-                      <div className="field-value mono">{details.flightNumber}</div>
-                    </div>
-                    <div className="manifest-cell">
-                      <div className="field-label">Destination</div>
-                      <div className="field-value">{details.destination}</div>
-                    </div>
-                    <div className="manifest-cell">
-                      <div className="field-label">Departure</div>
-                      <div className="departure-time mono">{details.departure}</div>
-                    </div>
-                    <div className="manifest-cell">
-                      <div className="field-label">Booking Ref</div>
-                      <div className="field-value mono green-text">{details.bookingReference}</div>
-                    </div>
-                  </div>
+                <div className="access-success-card">
+                  <div className="access-success-mark"><PlaneIcon /></div>
+                  <div className="field-label">Access Status</div>
+                  <h2>Lounge Access Verified</h2>
+                  <p>You may proceed to the lounge.</p>
                 </div>
 
                 <div className="terminal-status">
                   <div>
                     <div className="status-kicker">Terminal Status</div>
-                    <div className="status-title">Boarding Verified</div>
+                    <div className="status-title">Access Verified</div>
                   </div>
                   <div className="status-diamond"><span /></div>
                 </div>
@@ -507,7 +343,7 @@ export default function Home() {
               <div className="stage-panel validating-stage">
                 <div className="validation-spinner danger-spinner" />
                 <h2>{pageState === 'expired' ? 'Session Expired' : 'Try Again'}</h2>
-                <p>{pageState === 'expired' ? 'Start again to get a fresh check-in code.' : 'We could not match this booking.'}</p>
+                <p>{pageState === 'expired' ? 'Start again to get a fresh access code.' : 'We could not verify lounge access.'}</p>
               </div>
             ) : null}
           </section>
@@ -516,7 +352,7 @@ export default function Home() {
         <footer className="kiosk-footer">
           <div className="footer-actions">
             <button onClick={resetSession}>F1: Reset Session</button>
-            {isComplete ? <button className="seat-action">F2: Choose Seat <span>-&gt;</span></button> : null}
+            {isComplete ? <button className="seat-action">F2: Continue <span>-&gt;</span></button> : null}
           </div>
           <div>System Secure • v4.8.2</div>
         </footer>

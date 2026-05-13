@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'SkyLink Self Check-in',
-  description: 'SkyLink passenger self check-in demo'
+  title: 'SkyLink Lounge Access',
+  description: 'SkyLink lounge access verification demo'
 };
 
 export default function RootLayout({

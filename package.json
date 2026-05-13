@@ -1,7 +1,7 @@
 {
   "name": "oid4vp-verifier-demo",
   "version": "1.0.0",
-  "description": "Next.js SkyLink check-in demo with Lissi-compatible OID4VP QR flow",
+  "description": "Next.js SkyLink lounge access demo with Lissi-compatible OID4VP QR flow",
   "type": "module",
   "scripts": {
     "dev": "next dev",

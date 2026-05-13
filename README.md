@@ -1,11 +1,11 @@
-# SkyLink Check-in Demo (Next.js + Vercel)
+# SkyLink Lounge Access Demo (Next.js + Vercel)
 
-Next.js demo app for the SkyLink passenger check-in story, backed by a Lissi-compatible OID4VP request-by-reference flow and DCQL request objects.
+Next.js demo app for the SkyLink lounge access story, backed by a Lissi-compatible OID4VP request-by-reference flow and DCQL request objects.
 
 ## What It Does
 
 - Runs as a Next.js App Router app deployable to Vercel
-- Creates check-in requests and renders one QR
+- Creates lounge access requests and renders one QR
 - Uses `openid4vp://?client_id=redirect_uri:<response-uri>&request_uri=<...>&request_uri_method=post`
 - Serves a signed request-object JWT from request URI endpoint
 - Accepts `direct_post` responses on global callback endpoint
@@ -99,8 +99,8 @@ Restart app and create a new request.
 ```text
 APP_BASE_URL=https://your-app.vercel.app
 VERIFIER_ISSUER=https://your-app.vercel.app
-VERIFIER_REDIRECT_URI=https://your-app.vercel.app/check-in/complete
-VERIFIER_REDIRECT_URIS=https://your-app.vercel.app/check-in/complete
+VERIFIER_REDIRECT_URI=https://your-app.vercel.app/lounge/complete
+VERIFIER_REDIRECT_URIS=https://your-app.vercel.app/lounge/complete
 ```
 
 4. Deploy with the default Vercel Next.js settings.

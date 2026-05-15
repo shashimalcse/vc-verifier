@@ -308,7 +308,7 @@ export default function Home() {
             {isScanPhase ? (
               <div className="stage-panel instruction-stage">
                 <h2>Scan for Lounge Access</h2>
-                <p>Open your wallet, review the requested details, and share them to continue.</p>
+                <p>Open your wallet and present your digital membership to continue.</p>
               </div>
             ) : null}
 
@@ -327,14 +327,6 @@ export default function Home() {
                   <div className="field-label">Access Status</div>
                   <h2>Lounge Access Verified</h2>
                   <p>You may proceed to the lounge.</p>
-                </div>
-
-                <div className="terminal-status">
-                  <div>
-                    <div className="status-kicker">Terminal Status</div>
-                    <div className="status-title">Access Verified</div>
-                  </div>
-                  <div className="status-diamond"><span /></div>
                 </div>
               </div>
             ) : null}

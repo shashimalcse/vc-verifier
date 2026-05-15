@@ -7,6 +7,8 @@ export interface SdJwtFixture {
   publicJwk: JWK;
 }
 
+type FixtureClaim = 'given_name' | 'family_name' | 'birthdate' | 'membership_number' | 'lounge_tier';
+
 function b64urlJson(data: unknown): string {
   return Buffer.from(JSON.stringify(data), 'utf8').toString('base64url');
 }
@@ -21,24 +23,36 @@ function salt(): string {
 
 export async function createSdJwtFixture(options?: {
   issuer?: string;
-  includeClaims?: Array<'given_name' | 'family_name' | 'birthdate'>;
+  includeClaims?: FixtureClaim[];
+  undisclosedClaims?: FixtureClaim[];
   tamperSignature?: boolean;
 }): Promise<SdJwtFixture> {
   const issuer = options?.issuer ?? 'https://issuer.example';
   const includeClaims = options?.includeClaims ?? ['given_name', 'family_name', 'birthdate'];
+  const undisclosedClaims = options?.undisclosedClaims ?? [];
 
   const disclosures: string[] = [];
   const digests: string[] = [];
 
-  const claimValues: Record<string, string> = {
+  const claimValues: Record<FixtureClaim, string> = {
     given_name: 'Alice',
     family_name: 'Smith',
-    birthdate: '1999-04-12'
+    birthdate: '1999-04-12',
+    membership_number: 'SLK-99881',
+    lounge_tier: 'Gold'
   };
 
   for (const claim of includeClaims) {
     const disclosure = b64urlJson([salt(), claim, claimValues[claim]]);
     disclosures.push(disclosure);
+    digests.push(hashDisclosure(disclosure));
+  }
+
+  for (const claim of undisclosedClaims) {
+    if (includeClaims.includes(claim)) {
+      continue;
+    }
+    const disclosure = b64urlJson([salt(), claim, claimValues[claim]]);
     digests.push(hashDisclosure(disclosure));
   }
 

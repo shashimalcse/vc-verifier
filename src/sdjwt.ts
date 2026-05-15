@@ -16,6 +16,7 @@ type DisclosureEntry = {
 };
 
 type DisclosureMap = Map<string, DisclosureEntry>;
+const undisclosedArrayElement = Symbol('undisclosedArrayElement');
 
 function base64UrlDecodeToString(value: string): string {
   const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
@@ -62,21 +63,22 @@ function applyDisclosuresRecursively(
   reasons: string[]
 ): unknown {
   if (Array.isArray(node)) {
-    return node.map((item) => {
-      if (item && typeof item === 'object' && !Array.isArray(item) && '...' in item) {
-        const digest = (item as Record<string, unknown>)['...'];
-        if (typeof digest === 'string') {
-          const disclosure = disclosureLookup.get(digest);
-          if (!disclosure) {
-            reasons.push(`Missing disclosure for array digest: ${digest}`);
-            return item;
+    return node
+      .map((item) => {
+        if (item && typeof item === 'object' && !Array.isArray(item) && '...' in item) {
+          const digest = (item as Record<string, unknown>)['...'];
+          if (typeof digest === 'string') {
+            const disclosure = disclosureLookup.get(digest);
+            if (!disclosure) {
+              return undisclosedArrayElement;
+            }
+            disclosedDigestsUsed.add(digest);
+            return disclosure.value;
           }
-          disclosedDigestsUsed.add(digest);
-          return disclosure.value;
         }
-      }
-      return applyDisclosuresRecursively(item, disclosureLookup, disclosedDigestsUsed, reasons);
-    });
+        return applyDisclosuresRecursively(item, disclosureLookup, disclosedDigestsUsed, reasons);
+      })
+      .filter((item) => item !== undisclosedArrayElement);
   }
 
   if (!node || typeof node !== 'object') {
@@ -93,7 +95,6 @@ function applyDisclosuresRecursively(
 
     const disclosure = disclosureLookup.get(digestCandidate);
     if (!disclosure) {
-      reasons.push(`Missing disclosure for digest: ${digestCandidate}`);
       continue;
     }
 
